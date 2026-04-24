@@ -5,17 +5,19 @@ import {
   doc, onSnapshot, query, orderBy, serverTimestamp
 } from "firebase/firestore";
 
-const COLORS = {
-  bg: "#080c10", surface: "#0f1318", surface2: "#161c24",
-  border: "#1e2530", accent: "#00e5ff", gold: "#ffc940",
-  red: "#ff4757", green: "#2ed573", text: "#e8edf5", muted: "#4a5568",
-  knowledge: "#00e5ff", reasoning: "#ffc940", trap: "#ff4757",
+const C = {
+  bg: "#f8f9fb", white: "#ffffff", border: "#e8eaed", border2: "#d1d5db",
+  text: "#111827", text2: "#374151", muted: "#9ca3af", muted2: "#6b7280",
+  knowledge: "#0ea5e9", reasoning: "#f59e0b", trap: "#ef4444",
+  green: "#10b981", accent: "#6366f1", accentLight: "#eef2ff",
+  knowledgeLight: "#f0f9ff", reasoningLight: "#fffbeb",
+  trapLight: "#fef2f2", greenLight: "#f0fdf4",
 };
 
 const ERROR_TYPES = {
-  knowledge: { label: "Knowledge Gap",     icon: "🧠", desc: "Didn't know the fact",    color: COLORS.knowledge },
-  reasoning: { label: "Reasoning Error",   icon: "⚙️", desc: "Knew it, misapplied it", color: COLORS.reasoning },
-  trap:      { label: "Trap / Distractor", icon: "🪤", desc: "Got fooled by wording",  color: COLORS.trap },
+  knowledge: { label: "Knowledge Gap",     icon: "🧠", desc: "Didn't know the fact",    color: C.knowledge, light: C.knowledgeLight },
+  reasoning: { label: "Reasoning Error",   icon: "⚙️", desc: "Knew it, misapplied it", color: C.reasoning, light: C.reasoningLight },
+  trap:      { label: "Trap / Distractor", icon: "🪤", desc: "Got fooled by wording",  color: C.trap,      light: C.trapLight },
 };
 
 const SYSTEMS = [
@@ -37,185 +39,263 @@ function daysSince(ts) {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
-// ── StatBar ──────────────────────────────────────────────────────
+const inp = {
+  width: "100%", padding: "10px 14px", borderRadius: 8,
+  border: `1.5px solid ${C.border}`, background: C.white,
+  color: C.text, fontSize: 14, outline: "none",
+  fontFamily: "Inter, sans-serif", boxSizing: "border-box",
+};
+
+const lbl = {
+  fontSize: 11, fontWeight: 600, letterSpacing: "0.06em",
+  textTransform: "uppercase", color: C.muted2, display: "block", marginBottom: 6,
+};
+
+// ── StatBar ───────────────────────────────────────────────────────
 function StatBar({ entries }) {
-  const byType = (t) => entries.filter((e) => e.errorType === t).length;
-  const reviewed = entries.filter((e) => e.reviewed).length;
+  const byType = (t) => entries.filter(e => e.errorType === t).length;
   const stats = [
-    { label: "Total Logged",    value: entries.length,     color: COLORS.text },
-    { label: "Knowledge Gap",   value: byType("knowledge"), color: COLORS.knowledge },
-    { label: "Reasoning Error", value: byType("reasoning"), color: COLORS.reasoning },
-    { label: "Trap",            value: byType("trap"),      color: COLORS.trap },
-    { label: "Reviewed",        value: reviewed,            color: COLORS.green },
+    { label: "Total",     value: entries.length,                        color: C.accent,    bg: C.accentLight },
+    { label: "Knowledge", value: byType("knowledge"),                   color: C.knowledge, bg: C.knowledgeLight },
+    { label: "Reasoning", value: byType("reasoning"),                   color: C.reasoning, bg: C.reasoningLight },
+    { label: "Trap",      value: byType("trap"),                        color: C.trap,      bg: C.trapLight },
+    { label: "Reviewed",  value: entries.filter(e=>e.reviewed).length,  color: C.green,     bg: C.greenLight },
   ];
   return (
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 28 }}>
-      {stats.map((s) => (
-        <div key={s.label} style={{ flex: "1 1 100px", background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "12px 16px" }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 4 }}>{s.label}</div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 32 }}>
+      {stats.map(s => (
+        <div key={s.label} style={{ flex: "1 1 80px", background: s.bg, borderRadius: 12, padding: "16px 18px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: s.color, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 6 }}>{s.label}</div>
+          <div style={{ fontSize: 30, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
         </div>
       ))}
     </div>
   );
 }
 
-// ── ErrorTypeBtn ─────────────────────────────────────────────────
+// ── ErrorTypeBtn ──────────────────────────────────────────────────
 function ErrorTypeBtn({ type, selected, onSelect }) {
   const info = ERROR_TYPES[type];
-  const isSelected = selected === type;
+  const active = selected === type;
   return (
     <button onClick={() => onSelect(type)} style={{
-      flex: 1, padding: "12px 8px", borderRadius: 6,
-      border: `2px solid ${isSelected ? info.color : COLORS.border}`,
-      background: isSelected ? `${info.color}18` : "transparent",
-      color: isSelected ? info.color : COLORS.muted,
-      fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 12,
-      cursor: "pointer", textAlign: "center", transition: "all 0.18s", lineHeight: 1.4,
+      flex: 1, padding: "14px 10px", borderRadius: 10,
+      border: `2px solid ${active ? info.color : C.border}`,
+      background: active ? info.light : C.white,
+      color: active ? info.color : C.muted2,
+      fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 13,
+      cursor: "pointer", textAlign: "center", lineHeight: 1.5,
     }}>
-      <div style={{ fontSize: 20, marginBottom: 4 }}>{info.icon}</div>
-      <div>{info.label}</div>
-      <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7, marginTop: 2 }}>{info.desc}</div>
+      <div style={{ fontSize: 22, marginBottom: 5 }}>{info.icon}</div>
+      <div style={{ fontWeight: 700 }}>{info.label}</div>
+      <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.75, marginTop: 3 }}>{info.desc}</div>
     </button>
   );
 }
 
-// ── AddForm ──────────────────────────────────────────────────────
-function AddForm({ onAdd }) {
-  const [open, setOpen]             = useState(false);
-  const [topic, setTopic]           = useState("");
-  const [system, setSystem]         = useState("");
-  const [qnum, setQnum]             = useState("");
-  const [teaching, setTeaching]     = useState("");
-  const [clue, setClue]             = useState("");
-  const [wrongchoice, setWrongchoice] = useState("");
-  const [errorType, setErrorType]   = useState("");
-  const [err, setErr]               = useState("");
+// ── EntryForm (shared by Add + Edit) ─────────────────────────────
+function EntryForm({ initial = {}, onSave, onCancel, saveLabel = "Save Entry" }) {
+  const [topic,       setTopic]       = useState(initial.topic       || "");
+  const [system,      setSystem]      = useState(initial.system      || "");
+  const [qnum,        setQnum]        = useState(initial.qnum        || "");
+  const [teaching,    setTeaching]    = useState(initial.teaching    || "");
+  const [clue,        setClue]        = useState(initial.clue        || "");
+  const [wrongchoice, setWrongchoice] = useState(initial.wrongchoice || "");
+  const [errorType,   setErrorType]   = useState(initial.errorType   || "");
+  const [err,         setErr]         = useState("");
 
-  const inputStyle = {
-    background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6,
-    color: COLORS.text, fontFamily: "'DM Mono', monospace", fontSize: 13,
-    padding: "10px 12px", outline: "none", width: "100%", boxSizing: "border-box",
-  };
-  const labelStyle = {
-    fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase",
-    color: COLORS.muted, display: "block", marginBottom: 5,
-  };
-
-  const handleAdd = () => {
-    if (!topic)    { setErr("Please enter a topic.");          return; }
-    if (!teaching) { setErr("Please enter the teaching point."); return; }
-    if (!errorType){ setErr("Please select an error type.");   return; }
+  const handleSave = () => {
+    if (!topic)     { setErr("Please enter a topic."); return; }
+    if (!teaching)  { setErr("Please enter the teaching point."); return; }
+    if (!errorType) { setErr("Please select an error type."); return; }
     setErr("");
-    onAdd({ topic, system, qnum, teaching, clue, wrongchoice, errorType });
-    setTopic(""); setSystem(""); setQnum(""); setTeaching("");
-    setClue(""); setWrongchoice(""); setErrorType(""); setOpen(false);
+    onSave({ topic, system, qnum, teaching, clue, wrongchoice, errorType });
   };
-
-  if (!open) return (
-    <button onClick={() => setOpen(true)} style={{
-      width: "100%", padding: "16px",
-      background: `linear-gradient(135deg, ${COLORS.accent}22, ${COLORS.accent}08)`,
-      border: `1.5px dashed ${COLORS.accent}60`, borderRadius: 10,
-      color: COLORS.accent, fontFamily: "'Syne', sans-serif", fontWeight: 800,
-      fontSize: 14, cursor: "pointer", letterSpacing: "0.08em",
-      textTransform: "uppercase", marginBottom: 28,
-    }}>+ Log a New Wrong Answer</button>
-  );
 
   return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 22, marginBottom: 28, borderTop: `3px solid ${COLORS.accent}` }}>
-      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 800, color: COLORS.accent, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 20 }}>New Entry</div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><label style={labelStyle}>Topic / Concept *</label><input style={inputStyle} value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g. Afib management" /></div>
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
         <div>
-          <label style={labelStyle}>System</label>
-          <select style={{ ...inputStyle, appearance: "none" }} value={system} onChange={e => setSystem(e.target.value)}>
+          <label style={lbl}>Topic / Concept *</label>
+          <input style={inp} value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g. Afib management" />
+        </div>
+        <div>
+          <label style={lbl}>System</label>
+          <select style={{ ...inp, appearance: "none", cursor: "pointer" }} value={system} onChange={e => setSystem(e.target.value)}>
             <option value="">Select system...</option>
-            {SYSTEMS.map(s => <option key={s} value={s}>{s}</option>)}
+            {SYSTEMS.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>
 
-      <div style={{ marginBottom: 12 }}><label style={labelStyle}>UWorld Q# (optional)</label><input style={inputStyle} value={qnum} onChange={e => setQnum(e.target.value)} placeholder="e.g. #18342" /></div>
-      <div style={{ marginBottom: 12 }}><label style={labelStyle}>Core Teaching Point — in YOUR own words *</label><textarea style={{ ...inputStyle, minHeight: 80, resize: "vertical" }} value={teaching} onChange={e => setTeaching(e.target.value)} placeholder="What is the ONE thing this question was testing?" /></div>
-      <div style={{ marginBottom: 12 }}><label style={labelStyle}>Clue I Missed in the Stem</label><input style={inputStyle} value={clue} onChange={e => setClue(e.target.value)} placeholder="e.g. 'irregularly irregular' → should have flagged Afib" /></div>
-      <div style={{ marginBottom: 18 }}><label style={labelStyle}>What Would Make Wrong Choices Correct?</label><textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={wrongchoice} onChange={e => setWrongchoice(e.target.value)} placeholder="e.g. Choice B would be correct IF the patient were unstable..." /></div>
+      <div style={{ marginBottom: 14 }}>
+        <label style={lbl}>UWorld Q# (optional)</label>
+        <input style={inp} value={qnum} onChange={e => setQnum(e.target.value)} placeholder="e.g. #18342" />
+      </div>
 
-      <div style={{ marginBottom: 18 }}>
-        <label style={labelStyle}>Error Type *</label>
+      <div style={{ marginBottom: 14 }}>
+        <label style={lbl}>Core Teaching Point — in your own words *</label>
+        <textarea style={{ ...inp, minHeight: 90, resize: "vertical" }} value={teaching} onChange={e => setTeaching(e.target.value)} placeholder="What is the ONE thing this question was testing?" />
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={lbl}>Clue I missed in the stem</label>
+        <input style={inp} value={clue} onChange={e => setClue(e.target.value)} placeholder="e.g. 'irregularly irregular' → should have flagged Afib immediately" />
+      </div>
+
+      <div style={{ marginBottom: 22 }}>
+        <label style={lbl}>What would make the wrong choices correct?</label>
+        <textarea style={{ ...inp, minHeight: 80, resize: "vertical" }} value={wrongchoice} onChange={e => setWrongchoice(e.target.value)} placeholder="e.g. Choice B would be correct IF the patient were hemodynamically unstable..." />
+      </div>
+
+      <div style={{ marginBottom: 22 }}>
+        <label style={lbl}>Error Type *</label>
         <div style={{ display: "flex", gap: 10 }}>
           {Object.keys(ERROR_TYPES).map(t => <ErrorTypeBtn key={t} type={t} selected={errorType} onSelect={setErrorType} />)}
         </div>
       </div>
 
-      {err && <div style={{ color: COLORS.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+      {err && <div style={{ color: C.trap, fontSize: 13, marginBottom: 14, fontWeight: 500 }}>{err}</div>}
 
       <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={handleAdd} style={{ flex: 1, padding: "13px", background: COLORS.accent, color: COLORS.bg, border: "none", borderRadius: 7, fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 13, cursor: "pointer", letterSpacing: "0.08em", textTransform: "uppercase" }}>→ Save Entry</button>
-        <button onClick={() => setOpen(false)} style={{ padding: "13px 18px", background: "transparent", color: COLORS.muted, border: `1px solid ${COLORS.border}`, borderRadius: 7, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-// ── EntryCard ────────────────────────────────────────────────────
-function EntryCard({ entry, onToggleReview, onDelete }) {
-  const info    = ERROR_TYPES[entry.errorType] || ERROR_TYPES.knowledge;
-  const days    = daysSince(entry.createdAt);
-  const needsReview = !entry.reviewed && days >= 2;
-
-  return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 20, borderLeft: `4px solid ${info.color}`, marginBottom: 14, animation: "fadeIn 0.3s ease" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, color: COLORS.text, marginBottom: 4 }}>{entry.topic}</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {entry.system && <span style={{ fontSize: 10, background: COLORS.surface2, border: `1px solid ${COLORS.border}`, borderRadius: 4, padding: "2px 8px", color: COLORS.muted }}>{entry.system}</span>}
-            {entry.qnum   && <span style={{ fontSize: 10, color: COLORS.muted, fontFamily: "'DM Mono', monospace" }}>{entry.qnum}</span>}
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", padding: "2px 8px", borderRadius: 4, background: `${info.color}18`, color: info.color }}>{info.icon} {info.label}</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 10, color: COLORS.muted }}>{formatDate(entry.createdAt)}</span>
-          <button onClick={() => onDelete(entry.id)} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 4px" }}>×</button>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 4 }}>📌 Core Teaching Point</div>
-        <div style={{ fontFamily: "'Lora', serif", fontStyle: "italic", fontSize: 14, color: COLORS.accent, lineHeight: 1.7 }}>{entry.teaching}</div>
-      </div>
-
-      {entry.clue && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 4 }}>🔍 Clue I Missed</div>
-          <div style={{ fontSize: 13, color: COLORS.gold, lineHeight: 1.6 }}>{entry.clue}</div>
-        </div>
-      )}
-
-      {entry.wrongchoice && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 4 }}>🔄 What Makes Wrong Choices Correct</div>
-          <div style={{ fontSize: 13, color: COLORS.text, lineHeight: 1.6, opacity: 0.85 }}>{entry.wrongchoice}</div>
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: needsReview ? COLORS.red : entry.reviewed ? COLORS.green : COLORS.muted }}>
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: needsReview ? COLORS.red : entry.reviewed ? COLORS.green : COLORS.muted }} />
-          {entry.reviewed ? "Reviewed ✓" : needsReview ? "⚡ Due for 48hr Review!" : `Review in ${Math.max(0, 2 - days)} day(s)`}
-        </div>
-        <button onClick={() => onToggleReview(entry.id, entry.reviewed)} style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, padding: "5px 14px", borderRadius: 5, border: `1px solid ${entry.reviewed ? COLORS.green : COLORS.border}`, background: "transparent", color: entry.reviewed ? COLORS.green : COLORS.muted, cursor: "pointer", transition: "all 0.2s" }}>
-          {entry.reviewed ? "✓ Reviewed" : "Mark Reviewed"}
+        <button onClick={handleSave} style={{ flex: 1, padding: "13px", background: C.accent, color: C.white, border: "none", borderRadius: 10, fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+          {saveLabel}
+        </button>
+        <button onClick={onCancel} style={{ padding: "13px 20px", background: C.bg, color: C.muted2, border: `1.5px solid ${C.border}`, borderRadius: 10, fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+          Cancel
         </button>
       </div>
     </div>
   );
 }
 
-// ── Main App ─────────────────────────────────────────────────────
+// ── AddForm ───────────────────────────────────────────────────────
+function AddForm({ onAdd }) {
+  const [open, setOpen] = useState(false);
+
+  const handleSave = (fields) => {
+    onAdd(fields);
+    setOpen(false);
+  };
+
+  if (!open) return (
+    <button onClick={() => setOpen(true)} style={{
+      width: "100%", padding: "15px", background: C.white,
+      border: `2px dashed ${C.border2}`, borderRadius: 12,
+      color: C.accent, fontFamily: "Inter, sans-serif",
+      fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 24,
+    }}>+ Log a New Wrong Answer</button>
+  );
+
+  return (
+    <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 28, marginBottom: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <div style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 700, color: C.text }}>New Entry</div>
+        <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 22 }}>×</button>
+      </div>
+      <EntryForm onSave={handleSave} onCancel={() => setOpen(false)} saveLabel="Save Entry" />
+    </div>
+  );
+}
+
+// ── EntryCard with inline Edit ────────────────────────────────────
+function EntryCard({ entry, onToggleReview, onDelete, onEdit }) {
+  const [editing, setEditing] = useState(false);
+  const info = ERROR_TYPES[entry.errorType] || ERROR_TYPES.knowledge;
+  const days = daysSince(entry.createdAt);
+  const needsReview = !entry.reviewed && days >= 2;
+
+  const handleSave = (fields) => {
+    onEdit(entry.id, fields);
+    setEditing(false);
+  };
+
+  const iconBtn = (onClick, children, title) => (
+    <button onClick={onClick} title={title} style={{
+      background: "none", border: `1px solid ${C.border}`, borderRadius: 6,
+      color: C.muted2, cursor: "pointer", fontSize: 13, fontWeight: 600,
+      padding: "4px 10px", fontFamily: "Inter, sans-serif",
+      display: "flex", alignItems: "center", gap: 4, transition: "all 0.15s",
+    }}>{children}</button>
+  );
+
+  return (
+    <div style={{
+      background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 14,
+      padding: "22px 24px", marginBottom: 14,
+      boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
+      borderTop: `3px solid ${info.color}`,
+      animation: "fadeIn 0.25s ease",
+    }}>
+      {/* Header — always visible */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: editing ? 20 : 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 8, lineHeight: 1.3 }}>{entry.topic}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {entry.system && <span style={{ fontSize: 11, fontWeight: 600, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: "3px 10px", color: C.muted2 }}>{entry.system}</span>}
+            {entry.qnum   && <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{entry.qnum}</span>}
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: info.light, color: info.color }}>{info.icon} {info.label}</span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, color: C.muted }}>{formatDate(entry.createdAt)}</span>
+          {!editing && iconBtn(() => setEditing(true), <>✏️ Edit</>, "Edit entry")}
+          <button onClick={() => onDelete(entry.id)} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>×</button>
+        </div>
+      </div>
+
+      {/* EDIT MODE */}
+      {editing ? (
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>✏️ Editing Entry</div>
+          <EntryForm initial={entry} onSave={handleSave} onCancel={() => setEditing(false)} saveLabel="Save Changes" />
+        </div>
+      ) : (
+        /* VIEW MODE */
+        <>
+          <div style={{ height: 1, background: C.border, marginBottom: 16 }} />
+
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.muted, marginBottom: 6 }}>📌 Core Teaching Point</div>
+            <div style={{ fontSize: 14, color: C.text2, lineHeight: 1.7, fontStyle: "italic", borderLeft: `3px solid ${info.color}`, paddingLeft: 14 }}>{entry.teaching}</div>
+          </div>
+
+          {entry.clue && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.muted, marginBottom: 6 }}>🔍 Clue I Missed</div>
+              <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.6, background: C.reasoningLight, borderRadius: 8, padding: "10px 14px" }}>{entry.clue}</div>
+            </div>
+          )}
+
+          {entry.wrongchoice && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.muted, marginBottom: 6 }}>🔄 What Makes Wrong Choices Correct</div>
+              <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.6 }}>{entry.wrongchoice}</div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 600, color: needsReview ? C.trap : entry.reviewed ? C.green : C.muted }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: needsReview ? C.trap : entry.reviewed ? C.green : C.border2 }} />
+              {entry.reviewed ? "Reviewed ✓" : needsReview ? "⚡ Due for 48hr Review!" : `Review in ${Math.max(0, 2 - days)} day(s)`}
+            </div>
+            <button onClick={() => onToggleReview(entry.id, entry.reviewed)} style={{
+              fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 600,
+              padding: "6px 16px", borderRadius: 20,
+              border: `1.5px solid ${entry.reviewed ? C.green : C.border2}`,
+              background: entry.reviewed ? C.greenLight : C.white,
+              color: entry.reviewed ? C.green : C.muted2, cursor: "pointer",
+            }}>
+              {entry.reviewed ? "✓ Reviewed" : "Mark Reviewed"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,10 +304,9 @@ export default function App() {
   const [search,  setSearch]  = useState("");
   const [tab,     setTab]     = useState("log");
 
-  // Real-time Firestore listener
   useEffect(() => {
     const q = query(collection(db, "entries"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(q, snap => {
       setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
@@ -237,6 +316,12 @@ export default function App() {
   const handleAdd = async (fields) => {
     setSaving(true);
     await addDoc(collection(db, "entries"), { ...fields, reviewed: false, createdAt: serverTimestamp() });
+    setSaving(false);
+  };
+
+  const handleEdit = async (id, fields) => {
+    setSaving(true);
+    await updateDoc(doc(db, "entries", id), { ...fields, updatedAt: serverTimestamp() });
     setSaving(false);
   };
 
@@ -254,22 +339,13 @@ export default function App() {
   const dueCount = entries.filter(e => !e.reviewed && daysSince(e.createdAt) >= 2).length;
 
   const filtered = entries.filter(e => {
-    const matchFilter =
-      filter === "all"     ? true :
-      filter === "pending" ? !e.reviewed && daysSince(e.createdAt) >= 2 :
-      e.errorType === filter;
-    const matchSearch = search === "" ||
-      e.topic.toLowerCase().includes(search.toLowerCase()) ||
-      (e.system || "").toLowerCase().includes(search.toLowerCase()) ||
-      e.teaching.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === "all" ? true : filter === "pending" ? !e.reviewed && daysSince(e.createdAt) >= 2 : e.errorType === filter;
+    const matchSearch = search === "" || e.topic.toLowerCase().includes(search.toLowerCase()) || (e.system||"").toLowerCase().includes(search.toLowerCase()) || e.teaching.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
 
-  const topSystems = SYSTEMS.map(s => ({ name: s, count: entries.filter(e => e.system === s).length }))
-    .filter(s => s.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
-
-  const dominantType = ["knowledge","reasoning","trap"].reduce((a, b) =>
-    entries.filter(e=>e.errorType===b).length > entries.filter(e=>e.errorType===a).length ? b : a, "knowledge");
+  const topSystems = SYSTEMS.map(s => ({ name: s, count: entries.filter(e => e.system === s).length })).filter(s => s.count > 0).sort((a,b) => b.count - a.count).slice(0, 5);
+  const dominantType = ["knowledge","reasoning","trap"].reduce((a,b) => entries.filter(e=>e.errorType===b).length > entries.filter(e=>e.errorType===a).length ? b : a, "knowledge");
 
   const FILTERS = [
     { key: "all",       label: "All" },
@@ -280,67 +356,68 @@ export default function App() {
   ];
 
   if (loading) return (
-    <div style={{ background: COLORS.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Syne', sans-serif", color: COLORS.muted }}>
+    <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif" }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>◎</div>
-        <div style={{ fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase" }}>Connecting to your data...</div>
+        <div style={{ width: 36, height: 36, border: `3px solid ${C.border}`, borderTop: `3px solid ${C.accent}`, borderRadius: "50%", margin: "0 auto 16px", animation: "spin 0.8s linear infinite" }} />
+        <div style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>Loading your log...</div>
       </div>
     </div>
   );
 
   return (
-    <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.text, fontFamily: "'DM Mono', monospace" }}>
+    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "Inter, sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Lora:ital,wght@0,400;1,400;1,600&display=swap');
-        * { box-sizing: border-box; }
-        input::placeholder, textarea::placeholder { color: #3a4555; }
-        select option { background: #161c24; }
-        textarea { font-family: 'DM Mono', monospace; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(-6px) } to { opacity:1; transform:translateY(0) } }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #080c10; }
-        ::-webkit-scrollbar-thumb { background: #1e2530; border-radius: 4px; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        input, textarea, select { font-family: Inter, sans-serif; }
+        input::placeholder, textarea::placeholder { color: #d1d5db; }
+        select option { background: white; }
+        textarea { resize: vertical; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(-5px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        button:hover { opacity: 0.85; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #f1f3f5; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 5px; }
       `}</style>
 
       {/* NAV */}
-      <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 20px", position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 800, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
+      <nav style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "0 24px", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+        <div style={{ maxWidth: 780, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 28, height: 28, background: COLORS.accent, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: COLORS.bg, fontFamily: "'Syne', sans-serif" }}>W</div>
+            <div style={{ width: 32, height: 32, background: C.accent, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: C.white }}>W</div>
             <div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 14, color: COLORS.text, lineHeight: 1 }}>WhyWrong</div>
-              <div style={{ fontSize: 9, color: COLORS.muted, letterSpacing: "0.1em" }}>USMLE ERROR TRACKER</div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: C.text, lineHeight: 1 }}>WhyWrong</div>
+              <div style={{ fontSize: 10, color: C.muted, fontWeight: 500, letterSpacing: "0.05em" }}>USMLE Error Tracker</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {saving && <span style={{ fontSize: 10, color: COLORS.muted, letterSpacing: "0.1em" }}>saving...</span>}
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: saving ? COLORS.gold : COLORS.green }} title={saving ? "Syncing" : "Synced to Firebase"} />
-            <span style={{ fontSize: 9, color: COLORS.muted, letterSpacing: "0.08em" }}>{saving ? "SYNCING" : "SYNCED"}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: saving ? C.reasoning : C.green }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: saving ? C.reasoning : C.green }} />
+            {saving ? "Saving..." : "Synced"}
           </div>
         </div>
-      </div>
+      </nav>
 
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 16px 80px" }}>
+      <div style={{ maxWidth: 780, margin: "0 auto", padding: "36px 20px 80px" }}>
 
         {/* HEADER */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: COLORS.accent, marginBottom: 6 }}>// Your Personal Study Platform</div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(26px, 6vw, 42px)", fontWeight: 800, lineHeight: 1.05, color: COLORS.text }}>
-            Why Was I <span style={{ color: COLORS.accent }}>Wrong?</span>
-          </div>
-          <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 6, letterSpacing: "0.04em" }}>Every mistake categorized → every pattern eliminated → score climbs</div>
+        <div style={{ marginBottom: 36 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.accent, marginBottom: 8 }}>Your Personal Study Platform</div>
+          <h1 style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 800, color: C.text, lineHeight: 1.1, marginBottom: 10 }}>
+            Why Was I <span style={{ color: C.accent }}>Wrong?</span>
+          </h1>
+          <p style={{ fontSize: 14, color: C.muted2, lineHeight: 1.6 }}>Every mistake categorized → every pattern eliminated → score climbs</p>
         </div>
 
         {/* TABS */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: `1px solid ${COLORS.border}` }}>
-          {[["log","📋 Error Log"],["insights","📊 Insights"]].map(([key, label]) => (
+        <div style={{ display: "flex", marginBottom: 32, borderBottom: `1.5px solid ${C.border}` }}>
+          {[["log","Error Log"],["insights","Insights"]].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
-              padding: "10px 18px", background: "transparent", border: "none",
-              borderBottom: tab === key ? `2px solid ${COLORS.accent}` : "2px solid transparent",
-              color: tab === key ? COLORS.accent : COLORS.muted,
-              fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 12,
-              letterSpacing: "0.08em", cursor: "pointer", textTransform: "uppercase",
-              marginBottom: -1, transition: "all 0.18s",
+              padding: "10px 22px", background: "transparent", border: "none",
+              borderBottom: tab === key ? `2.5px solid ${C.accent}` : "2.5px solid transparent",
+              color: tab === key ? C.accent : C.muted2,
+              fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 13,
+              cursor: "pointer", marginBottom: -1.5,
             }}>{label}</button>
           ))}
         </div>
@@ -351,23 +428,31 @@ export default function App() {
             <StatBar entries={entries} />
             <AddForm onAdd={handleAdd} />
 
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search entries..." style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 7, color: COLORS.text, fontFamily: "'DM Mono', monospace", fontSize: 13, padding: "10px 14px", width: "100%", outline: "none", marginBottom: 14 }} />
+            <div style={{ position: "relative", marginBottom: 16 }}>
+              <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 14 }}>🔍</div>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by topic, system, or content..." style={{ ...inp, paddingLeft: 40 }} />
+            </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24 }}>
               {FILTERS.map(f => (
-                <button key={f.key} onClick={() => setFilter(f.key)} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f.key ? COLORS.accent : COLORS.border}`, background: filter === f.key ? `${COLORS.accent}12` : "transparent", color: filter === f.key ? COLORS.accent : COLORS.muted, fontFamily: "'DM Mono', monospace", fontSize: 11, cursor: "pointer", transition: "all 0.18s" }}>
-                  {f.label}
-                </button>
+                <button key={f.key} onClick={() => setFilter(f.key)} style={{
+                  padding: "6px 16px", borderRadius: 20, fontFamily: "Inter, sans-serif",
+                  border: `1.5px solid ${filter === f.key ? C.accent : C.border}`,
+                  background: filter === f.key ? C.accentLight : C.white,
+                  color: filter === f.key ? C.accent : C.muted2,
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>{f.label}</button>
               ))}
             </div>
 
             {filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "50px 20px", color: COLORS.muted }}>
-                <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.4 }}>◎</div>
-                <div style={{ fontSize: 13, lineHeight: 1.7 }}>No entries yet.<br />Log your first wrong answer above.</div>
+              <div style={{ textAlign: "center", padding: "60px 20px", color: C.muted }}>
+                <div style={{ fontSize: 40, marginBottom: 14 }}>📋</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: C.text2, marginBottom: 6 }}>No entries yet</div>
+                <div style={{ fontSize: 13 }}>Log your first wrong answer above to get started.</div>
               </div>
             ) : filtered.map(e => (
-              <EntryCard key={e.id} entry={e} onToggleReview={handleToggleReview} onDelete={handleDelete} />
+              <EntryCard key={e.id} entry={e} onToggleReview={handleToggleReview} onDelete={handleDelete} onEdit={handleEdit} />
             ))}
           </>
         )}
@@ -376,68 +461,68 @@ export default function App() {
         {tab === "insights" && (
           <div>
             {entries.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "50px 20px", color: COLORS.muted, fontSize: 13 }}>Log some entries first to see insights.</div>
+              <div style={{ textAlign: "center", padding: "60px 20px", color: C.muted }}>
+                <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: C.text2, marginBottom: 6 }}>No data yet</div>
+                <div style={{ fontSize: 13 }}>Log some entries first to see your patterns.</div>
+              </div>
             ) : (
               <>
-                {/* Dominant error */}
-                <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 22, marginBottom: 16, borderTop: `3px solid ${ERROR_TYPES[dominantType].color}` }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 8 }}>Your Dominant Error Pattern</div>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: ERROR_TYPES[dominantType].color }}>{ERROR_TYPES[dominantType].icon} {ERROR_TYPES[dominantType].label}</div>
-                  <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 8, lineHeight: 1.6 }}>
-                    {dominantType === "knowledge"  && "Focus on filling content gaps. Read UWorld explanations deeply and use Anki for high-yield facts."}
-                    {dominantType === "reasoning"  && "Your knowledge base is solid — you need to fix your thought process. Write out your reasoning before picking an answer."}
-                    {dominantType === "trap"        && "You're getting baited by distractors. Slow down on the stem. Read every keyword carefully before looking at choices."}
+                <div style={{ background: ERROR_TYPES[dominantType].light, border: `1.5px solid ${ERROR_TYPES[dominantType].color}40`, borderRadius: 14, padding: 24, marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: ERROR_TYPES[dominantType].color, marginBottom: 8 }}>Your Dominant Error Pattern</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 10 }}>{ERROR_TYPES[dominantType].icon} {ERROR_TYPES[dominantType].label}</div>
+                  <div style={{ fontSize: 14, color: C.text2, lineHeight: 1.7 }}>
+                    {dominantType === "knowledge" && "Focus on filling content gaps. Read UWorld explanations deeply and use Anki for high-yield facts."}
+                    {dominantType === "reasoning" && "Your knowledge base is solid — fix your thought process. Write out your reasoning before picking an answer."}
+                    {dominantType === "trap"      && "You're getting baited by distractors. Slow down on the stem and read every keyword carefully."}
                   </div>
                 </div>
 
-                {/* Breakdown bars */}
-                <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 22, marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 16 }}>Error Type Breakdown</div>
+                <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 24, marginBottom: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 20 }}>Error Type Breakdown</div>
                   {Object.keys(ERROR_TYPES).map(t => {
                     const count = entries.filter(e => e.errorType === t).length;
-                    const pct   = entries.length > 0 ? Math.round((count / entries.length) * 100) : 0;
+                    const pct = entries.length > 0 ? Math.round((count / entries.length) * 100) : 0;
                     return (
-                      <div key={t} style={{ marginBottom: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
-                          <span style={{ color: ERROR_TYPES[t].color }}>{ERROR_TYPES[t].icon} {ERROR_TYPES[t].label}</span>
-                          <span style={{ color: COLORS.muted }}>{count} ({pct}%)</span>
+                      <div key={t} style={{ marginBottom: 16 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                          <span style={{ fontWeight: 600, color: C.text2 }}>{ERROR_TYPES[t].icon} {ERROR_TYPES[t].label}</span>
+                          <span style={{ fontWeight: 700, color: ERROR_TYPES[t].color }}>{count} <span style={{ fontWeight: 400, color: C.muted }}>({pct}%)</span></span>
                         </div>
-                        <div style={{ height: 6, background: COLORS.surface2, borderRadius: 4, overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: ERROR_TYPES[t].color, borderRadius: 4, transition: "width 0.6s ease" }} />
+                        <div style={{ height: 8, background: C.bg, borderRadius: 8, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: ERROR_TYPES[t].color, borderRadius: 8, transition: "width 0.5s ease" }} />
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Weak systems */}
                 {topSystems.length > 0 && (
-                  <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 22, marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 16 }}>Weakest Systems</div>
+                  <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 24, marginBottom: 16, boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 20 }}>Weakest Systems</div>
                     {topSystems.map((s, i) => (
-                      <div key={s.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < topSystems.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 16, color: COLORS.muted, width: 20 }}>#{i+1}</div>
-                          <span style={{ fontSize: 14, color: COLORS.text }}>{s.name}</span>
+                      <div key={s.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < topSystems.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: 8, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: C.muted2 }}>#{i+1}</div>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: C.text2 }}>{s.name}</span>
                         </div>
-                        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: COLORS.red }}>{s.count}</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: C.trap }}>{s.count}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Review progress */}
-                <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 22 }}>
-                  <div style={{ fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: COLORS.muted, marginBottom: 10 }}>48-Hour Review Progress</div>
-                  <div style={{ display: "flex", gap: 16 }}>
+                <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 24, boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 20 }}>48-Hour Review Progress</div>
+                  <div style={{ display: "flex", gap: 12 }}>
                     {[
-                      { label: "Reviewed",  value: entries.filter(e=>e.reviewed).length, color: COLORS.green },
-                      { label: "Due Now",   value: dueCount,                              color: COLORS.red },
-                      { label: "Upcoming",  value: entries.filter(e=>!e.reviewed && daysSince(e.createdAt) < 2).length, color: COLORS.muted },
+                      { label: "Reviewed", value: entries.filter(e=>e.reviewed).length,                                     color: C.green,     bg: C.greenLight },
+                      { label: "Due Now",  value: dueCount,                                                                   color: C.trap,      bg: C.trapLight },
+                      { label: "Upcoming", value: entries.filter(e=>!e.reviewed && daysSince(e.createdAt) < 2).length,        color: C.reasoning, bg: C.reasoningLight },
                     ].map(s => (
-                      <div key={s.label} style={{ flex: 1, textAlign: "center" }}>
-                        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 32, fontWeight: 800, color: s.color }}>{s.value}</div>
-                        <div style={{ fontSize: 11, color: COLORS.muted }}>{s.label}</div>
+                      <div key={s.label} style={{ flex: 1, textAlign: "center", background: s.bg, borderRadius: 12, padding: "16px 8px" }}>
+                        <div style={{ fontSize: 32, fontWeight: 800, color: s.color, lineHeight: 1, marginBottom: 6 }}>{s.value}</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: s.color, opacity: 0.8 }}>{s.label}</div>
                       </div>
                     ))}
                   </div>
